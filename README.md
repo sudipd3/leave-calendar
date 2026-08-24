@@ -9,7 +9,16 @@ npm install
 npm run dev
 ```
 
-The current build uses a local storage adapter so the workflow can be previewed without a tenant. Data is stored in the browser under `leave-ledger.entries`.
+The app uses Supabase when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured. Without them, it falls back to browser storage for local preview. Data is stored in the browser under `leave-ledger.entries` only in fallback mode.
+
+## Supabase setup
+
+1. Create a free Supabase project.
+2. Open the Supabase SQL Editor and run `supabase/schema.sql`.
+3. Copy the project URL and anon key into a local `.env` file using `.env.example`.
+4. Run `npm run dev` and open the app. All configured users will read and write the same database records.
+
+The starter SQL policies allow public calendar access because this MVP has no login screen. Add Supabase Auth or MSAL and tighten the policies before using the app for sensitive workplace data.
 
 ## Available commands
 
@@ -20,7 +29,7 @@ The current build uses a local storage adapter so the workflow can be previewed 
 
 ## Microsoft Graph integration
 
-The next production step is replacing `src/services/leaveService.ts` storage calls with a Graph service using the `LeaveData` worksheet. Configure MSAL with environment values for the tenant, client ID, redirect URI, workbook drive/site ID, workbook item ID, and delegated Graph scopes. Do not commit those values or access tokens.
+The original Excel/Graph plan can still be used, but Supabase is now the recommended shared data backend. Configure MSAL with environment values for the tenant, client ID, redirect URI, workbook drive/site ID, workbook item ID, and delegated Graph scopes only if Excel integration is later required. Do not commit those values or access tokens.
 
 The workbook header row must be:
 

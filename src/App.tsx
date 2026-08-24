@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { addMonths, dateIsWithinEntry, formatDate, getCalendarDays, isPastEntry, monthLabel, todayIso } from './dateUtils'
 import { exportCsv, getLeaveEntries, saveLeaveEntry } from './services/leaveService'
 import type { LeaveDraft, LeaveEntry, LeaveType } from './types'
@@ -15,7 +15,8 @@ const initialDraft: LeaveDraft = {
 }
 
 function App() {
-  const [entries, setEntries] = useState<LeaveEntry[]>(getLeaveEntries)
+  const [entries, setEntries] = useState<LeaveEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeMonth, setActiveMonth] = useState(() => new Date())
   const [draft, setDraft] = useState<LeaveDraft>(initialDraft)
   const [editingId, setEditingId] = useState<string>()
@@ -23,6 +24,10 @@ function App() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const today = todayIso()
+
+  useEffect(() => {
+    getLeaveEntries().then(setEntries).catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Unable to load leave.')).finally(() => setLoading(false))
+  }, [])
 
   const people = useMemo(() => ['All people', ...Array.from(new Set(entries.map((entry) => entry.employeeName))).sort()], [entries])
   const visibleEntries = useMemo(() => filter === 'All people' ? entries : entries.filter((entry) => entry.employeeName === filter), [entries, filter])
@@ -39,11 +44,11 @@ function App() {
     setNotice('')
   }
 
-  function submitLeave(event: React.FormEvent<HTMLFormElement>) {
+  async function submitLeave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     try {
-      saveLeaveEntry(draft, editingId)
-      setEntries(getLeaveEntries())
+      await saveLeaveEntry(draft, editingId)
+      setEntries(await getLeaveEntries())
       setDraft(initialDraft)
       setEditingId(undefined)
       setNotice(editingId ? 'Leave entry updated for everyone.' : 'Leave entry added to the shared calendar.')
@@ -67,6 +72,8 @@ function App() {
     setDraft(initialDraft)
     setError('')
   }
+
+  if (loading) return <main className="app-shell loading-screen"><p className="eyebrow">Leave Ledger</p><h2>Loading shared calendar...</h2></main>
 
   return (
     <main className="app-shell">

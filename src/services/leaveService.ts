@@ -1,8 +1,25 @@
 import { addDays, addMonths, isPastEntry, todayIso } from '../dateUtils'
 import type { LeaveDraft, LeaveEntry } from '../types'
+import { createClient } from '@supabase/supabase-js'
 
 const STORAGE_KEY = 'leave-ledger.entries'
 const WINDOW_MONTHS = 3
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
+
+type LeaveRow = {
+  id: string
+  employee_name: string
+  start_date: string
+  end_date: string
+  leave_type: LeaveEntry['leaveType']
+  status: LeaveEntry['status']
+}
+
+function fromRow(row: LeaveRow): LeaveEntry {
+  return { id: row.id, employeeName: row.employee_name, startDate: row.start_date, endDate: row.end_date, leaveType: row.leave_type, status: row.status }
+}
 
 function seedEntries(): LeaveEntry[] {
   const today = todayIso()
@@ -34,8 +51,15 @@ function writeEntries(entries: LeaveEntry[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
 }
 
-export function getLeaveEntries(): LeaveEntry[] {
+function getLocalLeaveEntries(): LeaveEntry[] {
   return readEntries().sort((a, b) => a.startDate.localeCompare(b.startDate))
+}
+
+export async function getLeaveEntries(): Promise<LeaveEntry[]> {
+  if (!supabase) return getLocalLeaveEntries()
+  const { data, error } = await supabase.from('leave_entries').select('id, employee_name, start_date, end_date, leave_type, status').order('start_date')
+  if (error) throw new Error(`Could not load shared leave: ${error.message}`)
+  return (data as LeaveRow[]).map(fromRow)
 }
 
 export function validateDraft(draft: LeaveDraft, today = todayIso()): string {
@@ -48,10 +72,25 @@ export function validateDraft(draft: LeaveDraft, today = todayIso()): string {
   return ''
 }
 
-export function saveLeaveEntry(draft: LeaveDraft, entryId?: string): LeaveEntry {
+export async function saveLeaveEntry(draft: LeaveDraft, entryId?: string): Promise<LeaveEntry> {
   const today = todayIso()
   const error = validateDraft(draft, today)
   if (error) throw new Error(error)
+
+  if (supabase) {
+    if (entryId) {
+      const { data: existing, error: readError } = await supabase.from('leave_entries').select('id, end_date').eq('id', entryId).single()
+      if (readError || !existing) throw new Error('That leave entry no longer exists.')
+      if (existing.end_date < today) throw new Error('Past leave is read-only.')
+    }
+    const row = { employee_name: draft.employeeName.trim(), start_date: draft.startDate, end_date: draft.endDate, leave_type: draft.leaveType, status: draft.status }
+    const request = entryId
+      ? supabase.from('leave_entries').update(row).eq('id', entryId).select('id, employee_name, start_date, end_date, leave_type, status').single()
+      : supabase.from('leave_entries').insert(row).select('id, employee_name, start_date, end_date, leave_type, status').single()
+    const { data, error: writeError } = await request
+    if (writeError || !data) throw new Error(writeError?.message ?? 'Could not save shared leave.')
+    return fromRow(data as LeaveRow)
+  }
 
   const entries = readEntries()
   if (entryId) {
