@@ -11,6 +11,15 @@ npm run dev
 
 The app uses Supabase when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured. Without them, it falls back to browser storage for local preview. Data is stored in the browser under `leave-ledger.entries` only in fallback mode.
 
+## Local demo login
+
+- Approver: `approver@leaveledger.local` / `approver123`
+- Leave-Taker: `you@leaveledger.local` / `leave123`
+
+The Approver sees the **Add user** panel. New local users receive `leave123` for Leave-Taker or `approver123` for Approver. This demo authentication is stored in browser storage and is not suitable for production; replace it with MSAL or Supabase Auth before deployment.
+
+Approvers can remove individual records and clear all past history. These actions are protected by the local demo role only; before production, replace the public Supabase delete policy with an authenticated Approver policy.
+
 ## Supabase setup
 
 1. Create a free Supabase project.
@@ -26,25 +35,3 @@ The starter SQL policies allow public calendar access because this MVP has no lo
 - `npm run build` - run TypeScript and create a production build
 - `npm run test` - run validation tests
 - `npm run preview` - preview the production build
-
-## Microsoft Graph integration
-
-The original Excel/Graph plan can still be used, but Supabase is now the recommended shared data backend. Configure MSAL with environment values for the tenant, client ID, redirect URI, workbook drive/site ID, workbook item ID, and delegated Graph scopes only if Excel integration is later required. Do not commit those values or access tokens.
-
-The workbook header row must be:
-
-`EmployeeName, StartDate, EndDate, LeaveType, Status`
-
-A service/API boundary must reject updates to rows whose leave period has ended. Restrict direct workbook access if past-row immutability must be guaranteed outside the application.
-
-## Product rules
-
-- Leave types: Casual, Sick, Vacation.
-- Statuses: Pending, Approved.
-- Future leave can be created or updated by any authenticated user.
-- Past leave can be viewed but not edited or deleted.
-- Future dates must be within three calendar months from today.
-
-## Known decisions to confirm
-
-Weekend and holiday handling, overlapping leave, whether statuses are user-editable, and the refresh or change-notification strategy should be agreed before production Graph integration.
